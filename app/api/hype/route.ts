@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthCookie, AUTH_COOKIE_NAME } from "@/lib/auth";
 import { addHype } from "@/lib/db";
+import { revalidatePath } from "next/cache";
 
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
@@ -27,6 +28,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const newHypeCount = await addHype(photoId, deviceId);
+    
+  
+    revalidatePath("/");
+    revalidatePath("/api/highlights");
+
     return NextResponse.json({ hype: newHypeCount });
   } catch (err) {
     console.error("hype route failed:", err);
