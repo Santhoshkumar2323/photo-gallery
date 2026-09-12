@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import FriendTabs from "@/components/FriendTabs";
 import HighlightsRow, { type HighlightPhoto } from "@/components/HighlightsRow";
 import Lightbox from "@/components/Lightbox";
@@ -9,6 +9,11 @@ interface HighlightsData {
   mostViewed: HighlightPhoto[];
   mostHyped: HighlightPhoto[];
   mostDownloaded: HighlightPhoto[];
+}
+
+interface HypeState {
+  count: number;
+  hasHyped: boolean;
 }
 
 type Tab = "gallery" | "highlights";
@@ -24,10 +29,36 @@ export default function DashboardPage() {
     index: number;
   } | null>(null);
 
+  const [hypeOverrides, setHypeOverrides] = useState<Record<string, HypeState>>({});
+
   function openLightbox(photos: HighlightPhoto[], clickedPhoto: HighlightPhoto) {
     const index = photos.findIndex((p) => p.id === clickedPhoto.id);
     setLightboxState({ photos, index: index === -1 ? 0 : index });
   }
+
+  function handleHyped(photoId: string, newCount: number) {
+    setHypeOverrides((prev) => ({ ...prev, [photoId]: { count: newCount, hasHyped: true } }));
+  }
+
+  function handleHypeFailed(photoId: string) {
+    setHypeOverrides((prev) => {
+      const current = prev[photoId];
+      if (!current) return prev;
+      return { ...prev, [photoId]: { count: current.count - 1, hasHyped: false } };
+    });
+  }
+  const fetchHighlights = useCallback(async () => {
+    try {
+      const response = await fetch("/api/highlights", { cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to refresh highlights.");
+      const body = await response.json();
+      setHighlights(body);
+
+      setHypeOverrides({});
+    } catch (err) {
+      console.error("Highlights refresh failed:", err);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +94,22 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "highlights") {
+      fetchHighlights();
+    }
+  }, [activeTab, fetchHighlights]);
+
+  useEffect(() => {
+    function handleFocus() {
+      if (activeTab === "highlights") {
+        fetchHighlights();
+      }
+    }
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [activeTab, fetchHighlights]);
 
   const isLoading = friends === null || highlights === null;
 
@@ -100,18 +147,21 @@ export default function DashboardPage() {
             statKey="views"
             photos={highlights.mostViewed}
             onPhotoClick={(photo) => openLightbox(highlights.mostViewed, photo)}
+            hypeOverrides={hypeOverrides}
           />
           <HighlightsRow
             title="Most hyped"
             statKey="hype"
             photos={highlights.mostHyped}
             onPhotoClick={(photo) => openLightbox(highlights.mostHyped, photo)}
+            hypeOverrides={hypeOverrides}
           />
           <HighlightsRow
             title="Most downloaded"
             statKey="downloads"
             photos={highlights.mostDownloaded}
             onPhotoClick={(photo) => openLightbox(highlights.mostDownloaded, photo)}
+            hypeOverrides={hypeOverrides}
           />
         </div>
       )}
@@ -121,6 +171,9 @@ export default function DashboardPage() {
           photos={lightboxState.photos}
           initialIndex={lightboxState.index}
           onClose={() => setLightboxState(null)}
+          hypeOverrides={hypeOverrides}
+          onHype={handleHyped}
+          onHypeFailed={handleHypeFailed}
         />
       )}
     </main>

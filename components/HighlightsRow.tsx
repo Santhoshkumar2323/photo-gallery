@@ -13,6 +13,11 @@ export interface HighlightPhoto {
   hype: number;
 }
 
+interface HypeState {
+  count: number;
+  hasHyped: boolean;
+}
+
 type StatKey = "views" | "downloads" | "hype";
 
 interface HighlightsRowProps {
@@ -20,6 +25,7 @@ interface HighlightsRowProps {
   statKey: StatKey;
   photos: HighlightPhoto[];
   onPhotoClick: (photo: HighlightPhoto) => void;
+  hypeOverrides?: Record<string, HypeState>;
 }
 
 const STAT_ICON: Record<StatKey, typeof Eye> = {
@@ -28,11 +34,17 @@ const STAT_ICON: Record<StatKey, typeof Eye> = {
   downloads: Download,
 };
 
-export default function HighlightsRow({ title, statKey, photos, onPhotoClick }: HighlightsRowProps) {
+export default function HighlightsRow({
+  title,
+  statKey,
+  photos,
+  onPhotoClick,
+  hypeOverrides,
+}: HighlightsRowProps) {
   const StatIcon = STAT_ICON[statKey];
 
   if (photos.length === 0) {
-    return null; // no data yet for this category — nothing to show, not an error
+    return null; 
   }
 
   return (
@@ -48,32 +60,39 @@ export default function HighlightsRow({ title, statKey, photos, onPhotoClick }: 
       >
         <style>{`.highlights-row-scroll::-webkit-scrollbar { display: none; }`}</style>
 
-        {photos.map((photo) => (
-          <button
-            key={photo.id}
-            type="button"
-            onClick={() => onPhotoClick(photo)}
-            aria-label={`Photo by ${photo.friendName}, ${photo[statKey]} ${statKey}`}
-            className="flex-shrink-0 text-left"
-          >
-            <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-white/5">
-              <Image
-                src={photo.thumbnailUrl}
-                alt=""
-                fill
-                sizes="80px"
-                className="object-cover"
-              />
-              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[11px] text-white">
-                <StatIcon size={11} aria-hidden="true" />
-                {photo[statKey]}
-              </span>
-            </div>
-            <p className="mt-1 max-w-[80px] truncate text-[11px] text-white/60">
-              {photo.friendName}
-            </p>
-          </button>
-        ))}
+        {photos.map((photo) => {
+          const displayValue =
+            statKey === "hype" && hypeOverrides?.[photo.id]
+              ? hypeOverrides[photo.id].count
+              : photo[statKey];
+
+          return (
+            <button
+              key={photo.id}
+              type="button"
+              onClick={() => onPhotoClick(photo)}
+              aria-label={`Photo by ${photo.friendName}, ${displayValue} ${statKey}`}
+              className="flex-shrink-0 text-left"
+            >
+              <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-white/5">
+                <Image
+                  src={photo.thumbnailUrl}
+                  alt=""
+                  fill
+                  sizes="80px"
+                  className="object-cover"
+                />
+                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[11px] text-white">
+                  <StatIcon size={11} aria-hidden="true" />
+                  {displayValue}
+                </span>
+              </div>
+              <p className="mt-1 max-w-[80px] truncate text-[11px] text-white/60">
+                {photo.friendName}
+              </p>
+            </button>
+          );
+        })}
       </div>
     </section>
   );
