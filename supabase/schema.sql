@@ -1,12 +1,15 @@
 create extension if not exists pgcrypto;
 create table if not exists photos (
-  id           uuid primary key default gen_random_uuid(),
-  friend_name  text not null,
-  path         text not null unique,       
-  views        integer not null default 0,
-  downloads    integer not null default 0,
-  hype         integer not null default 0,
-  created_at   timestamptz not null default now()
+  id                  uuid primary key default gen_random_uuid(),
+  friend_name         text not null,
+  path                text not null unique,
+  views               integer not null default 0,
+  downloads           integer not null default 0,
+  hype                integer not null default 0,
+  last_viewed_at      timestamptz,
+  last_downloaded_at  timestamptz,
+  last_hyped_at       timestamptz,
+  created_at          timestamptz not null default now()
 );
 
 create index if not exists idx_photos_friend_name on photos (friend_name);
@@ -41,14 +44,17 @@ create policy "photos are readable"
 
 create or replace function increment_view(p_photo_id uuid)
 returns void as $$
-  update photos set views = views + 1 where id = p_photo_id;
+  update photos
+  set views = views + 1, last_viewed_at = now()
+  where id = p_photo_id;
 $$ language sql security definer;
 
 create or replace function increment_download(p_photo_id uuid)
 returns void as $$
-  update photos set downloads = downloads + 1 where id = p_photo_id;
+  update photos
+  set downloads = downloads + 1, last_downloaded_at = now()
+  where id = p_photo_id;
 $$ language sql security definer;
-
 
 create or replace function add_hype(p_photo_id uuid, p_device_id text)
 returns integer as $$
@@ -57,7 +63,7 @@ declare
 begin
   begin
     insert into hype_log (photo_id, device_id) values (p_photo_id, p_device_id);
-    update photos set hype = hype + 1 where id = p_photo_id
+    update photos set hype = hype + 1, last_hyped_at = now() where id = p_photo_id
       returning hype into new_count;
   exception when unique_violation then
     select hype into new_count from photos where id = p_photo_id;

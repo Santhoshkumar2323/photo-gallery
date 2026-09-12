@@ -43,6 +43,9 @@ export interface Photo {
   views: number;
   downloads: number;
   hype: number;
+  last_viewed_at: string | null;
+  last_downloaded_at: string | null;
+  last_hyped_at: string | null;
   created_at: string;
 }
 
@@ -85,25 +88,31 @@ export async function getPhotosByFriend(
   return { photos, hasMore };
 }
 
-
 export async function getHighlights(): Promise<Highlights> {
   const client = getPublicClient();
 
+  // Secondary .order() only ever breaks a tie on the first column
+  // — it never outranks a genuinely higher views/hype/downloads
+  // count. nullsFirst: false keeps older rows (from before this
+  // column existed) sorting after ones with real timestamps.
   const [viewedRes, hypedRes, downloadedRes] = await Promise.all([
     client
       .from("photos")
       .select("*")
       .order("views", { ascending: false })
+      .order("last_viewed_at", { ascending: false, nullsFirst: false })
       .limit(HIGHLIGHTS_ROW_SIZE),
     client
       .from("photos")
       .select("*")
       .order("hype", { ascending: false })
+      .order("last_hyped_at", { ascending: false, nullsFirst: false })
       .limit(HIGHLIGHTS_ROW_SIZE),
     client
       .from("photos")
       .select("*")
       .order("downloads", { ascending: false })
+      .order("last_downloaded_at", { ascending: false, nullsFirst: false })
       .limit(HIGHLIGHTS_ROW_SIZE),
   ]);
 
@@ -135,7 +144,6 @@ export async function incrementView(photoId: string): Promise<void> {
   });
   if (error) throw new Error(`incrementView failed: ${error.message}`);
 }
-
 
 export async function incrementDownload(photoId: string): Promise<void> {
   const { error } = await getAdminClient().rpc("increment_download", {
